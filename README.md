@@ -1,24 +1,23 @@
-# Rnaseq — Reproducible Code for "Transcriptome-based identification of bottlenecks in the paclitaxel biosynthesis Pathway" Article
+# Rnaseq — Codes for *Transcriptome-based identification of bottlenecks in the paclitaxel biosynthesis pathway*
 
-A complete package for gene expression analysis of KEGG pathways with advanced visualization and statistical analysis capabilities.
+A compact package for gene expression analysis of KEGG pathways with visualization and statistics.
 
-Differential Expression Analysis (DEG) with DESeq2
-
-KEGG enrichment and results visualization
-
-Module activity in different samples
-
-Analysis of precursor pathways with bubble plots
-
-Diffusion-quality plots (Volcano, PCA, Heatmap)
-
-Support for Counts and TPM data
-
+- Differential Expression Analysis (DEG) with DESeq2  
+- KEGG enrichment and results visualization  
+- Module activity across samples  
+- Precursor pathway analysis with bubble plots  
+- Publication-quality plots (Volcano, PCA, Heatmap)  
+- Supports both Counts and TPM (TPM optional for plots)
 
 
 This repository contains the **code** used in the study "Transcriptome-based identification of bottlenecks in the paclitaxel biosynthesis Pathway".
-**No data are included in this repository.** Reviewers can run the code by placing the required inputs locally and updating the USER CONFIG block in `scripts/R/Pathway Analysis Pipeline.R`.
+> **Code only** is hosted here. **No data** are included in this repository. Reviewers can run the code by placing required inputs locally and editing the **USER CONFIG** block at the top of `Scripts/R/kegg_pipeline.R`.
 
+
+Data availability
+
+Data will be provided with the journal’s supplementary materials.
+Placeholder: add DOI/URL here after acceptance.
 
 
 ## How to run (quick)
