@@ -1,0 +1,5 @@
+if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+cran <- c("readxl","openxlsx","dplyr","tibble","ggplot2","ggrepel","pheatmap","ggpubr","reshape2","tidyr")
+bioc <- c("DESeq2","clusterProfiler","enrichplot")
+install.packages(setdiff(cran, rownames(installed.packages())))
+BiocManager::install(setdiff(bioc, rownames(installed.packages())))

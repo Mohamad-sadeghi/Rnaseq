@@ -1,0 +1,27 @@
+# R
+.Rhistory
+.Rproj.user/
+.RData
+.Ruserdata
+.Rprofile
+*.Rproj
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS/Editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local outputs (not tracked)
+results/
+Plots/
+DEG_Module_Results/
+*.png
+*.xlsx
