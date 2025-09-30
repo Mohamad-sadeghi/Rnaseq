@@ -11,7 +11,7 @@ A compact package for gene expression analysis of KEGG pathways with visualizati
 
 
 This repository contains the **code** used in the study "Transcriptome-based identification of bottlenecks in the paclitaxel biosynthesis Pathway".
-> **Code only** is hosted here. **No data** are included in this repository. Reviewers can run the code by placing required inputs locally and editing the **USER CONFIG** block at the top of `Scripts/R/kegg_pipeline.R`.
+> **Code only** is hosted here. **No data** are included in this repository. Reviewers can run the code by placing required inputs locally and editing the **USER CONFIG** block at the top of `Scripts/R/Pathway_Analysis_Pipeline.R`.
 
 
 Data availability
