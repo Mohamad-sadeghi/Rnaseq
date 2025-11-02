@@ -1,4 +1,4 @@
-# Rnaseq — Codes for *Transcriptome-based identification of bottlenecks in the paclitaxel biosynthesis pathway*
+# Rnaseq — Codes for *: Modular Transcriptomic Diagnosis of Bottlenecks for Improving Paclitaxel Biosynthesis*
 
 A compact package for gene expression analysis of KEGG pathways with visualization and statistics.
 
