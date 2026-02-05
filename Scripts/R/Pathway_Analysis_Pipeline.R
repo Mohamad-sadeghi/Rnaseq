@@ -1,12 +1,13 @@
 # =============================
-# 🔧 KEGG Analysis ( Counts for DE + Optional TPM for plots)
+# KEGG-based differential expression and pathway analysis
 # =============================
- 
 
-# اگر نیاز بود:
+
+# Package installation (run once if required)
 # if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
 # BiocManager::install(c("DESeq2","clusterProfiler","enrichplot"))
 # install.packages(c("readxl","openxlsx","dplyr","tibble","ggplot2","ggrepel","pheatmap","ggpubr","reshape2"))
+
 
 suppressPackageStartupMessages({
   library(readxl)
@@ -23,46 +24,49 @@ suppressPackageStartupMessages({
   library(reshape2)
   library(tidyr)
 })
- 
+
 
 # =============================
-# ⚙️ CONFIGURATION BLOCK (User Editable)
+# Configuration parameters (user editable)
 # =============================
 
 # -----------------------------
-# 📁 Paths and File Settings
+# Input/output paths and file settings
 # -----------------------------
 work_dir        <- "D:\\ArticleScripts"    # مسیر کار
-output_dir      <- "D:\\ArticleScripts\\Results"
+output_dir      <- "D:\\ArticleScripts\\Results4"
 
-file_name       <- "Expression_matrix.xlsx"              # نام فایل اکسل
+file_name       <- "F_MatrisX.xlsx"              # نام فایل اکسل
 reads_sheet     <- "Reads"                       # شیت شمارش خام
 tpm_sheet       <- "TPM"                         # شیت TPM (اختیاری)
 
+setwd(work_dir)
 # -----------------------------
-# 🔬 Analysis Parameters
+# 🔬 # Analysis parameters
 # -----------------------------
-USE_TPM_FOR_PLOTS <- TRUE                        # استفاده از TPM برای نمودارها
+USE_TPM_FOR_PLOTS <- TRUE                        # Use TPM values for visualization when available
 VOLCANO_PVAL      <- 0.05                        # آستانه padj برای ولکانو
 L2FC_THRESHOLD    <- 1                           # آستانه |log2FC| برای معنی‌داری
 
+USE_BATCH_EFFECT      <- TRUE     
+RUN_BATCH_SENSITIVITY <- TRUE
 
-# ایجاد پوشه های خروجی
+# Create output directories
+
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 dir.create(file.path(output_dir, "Plots"), showWarnings = FALSE, recursive = TRUE)
 dir.create(file.path(output_dir, "DEG_Module_Results"), showWarnings = FALSE, recursive = TRUE)
 
 # -----------------------------
-# 🧬 MODULE DEFINITIONS (User Editable)
+# 🧬 KEGG module definitions (user editable)
 # -----------------------------
 
-# پاکسازی فاصله‌ها
+# Utility function to normalize KO identifiers
 trimK <- function(x) gsub("\\s+", "", x)
 
-# ==========================ِDefine your module here==================================Add More Modules
+# Definition of pathway-specific KO sets
 
-
-
+Taxadine_module <- c("K12921","K14039","K12923","K27503","K12924","K20512","K12926","K27849","K27850","K28367", "K20709")
 
 Mevalonate_Module <- c("K00626","K01641","K00021","K00054","K00869","K18689",
                        "K00938","K13273","K25517","K18690","K01597","K17942","K25518","K22813","K06981","K01823","K09128","K03186")
@@ -70,7 +74,17 @@ Mevalonate_Module <- c("K00626","K01641","K00021","K00054","K00869","K18689",
 MEP_Module <- c("K01662","K00099","K00991","K00919","K01770","K03526","K12506",
                 "K03527","K01823","K14066","K00787","K00795","K00804","K13789","K13787")
 
- 
+PhenylAlanine_Module <- c("K01850","K15849","K05359","K04092","K14187","K04093","K04516","K06208","K06209",
+                          "K01713","K04518","K14170","K00832","K00838")
+
+Gibberellin_biosynthesis <- c("K20657","K21292","K12917","K12918","K12919","K05282","K04124","K04120","K04121","K04122","K04123")
+
+competitor_genes <- c("K12742", "K05356", "K10960", "K15888", "K05355", "K21268", "K12504", "K02523", "K12505", "K00805", "K24873",
+                      "K05355", "K21274", "K21275", "K00806", "K06447", "K11778", "K19177", "K05954", "K05955", "K15793", "K12503",
+                      "K15887", "K10208", "K02291", "K00801", "K20986", "K20979", "K15086", "K22049", "K12467", "K21925", "K21926",
+                      "K15087", "K15088", "K15096", "K07384", "K22050", "K15097", "K07385", "K18108", "K21925", "K22208", "K21938",
+                      "K15098", "K00791", "K10760", "K18385")
+
 # KEGG Pathway Modules
 map00906 <- c("K00514","K02291","K02292","K02293","K02294","K06443","K06444","K08977","K09835","K09836","K09837","K09838","K09839",
               "K09840","K09841","K09842","K09843","K09844","K09845","K09846","K09847","K09879","K10027","K10208","K10209","K10210",
@@ -116,23 +130,13 @@ map00270 <- c("K00003","K00016","K00024","K00025","K00026","K00058","K00133","K0
               "K20250","K20772","K21456","K21623","K22207","K22846","K22847","K22954","K22955","K22956","K22957","K22968","K23304",
               "K23370","K23975","K23976","K23977","K24034","K24042","K25035","K25316","K25317","K27857","K28205")
 
-Taxadine_module <- c("K12921","K14039","K12923","K27503","K12924","K20512","K12926","K27849","K27850","K28367", "K20709")
-
-Gibberellin_biosynthesis <- c("K20657","K21292","K12917","K12918","K12919","K05282","K04124","K04120","K04121","K04122","K04123")
-
-PhenylAlanine_Module <- c("K01850","K15849","K05359","K04092","K14187","K04093","K04516","K06208","K06209",
-                          "K01713","K04518","K14170","K00832","K00838")
-
-competitor_genes <- c("K12742", "K05356", "K10960", "K15888", "K05355", "K21268", "K12504", "K02523", "K12505", "K00805", "K24873",
-                      "K05355", "K21274", "K21275", "K00806", "K06447", "K11778", "K19177", "K05954", "K05955", "K15793", "K12503",
-                      "K15887", "K10208", "K02291", "K00801", "K20986", "K20979", "K15086", "K22049", "K12467", "K21925", "K21926",
-                      "K15087", "K15088", "K15096", "K07384", "K22050", "K15097", "K07385", "K18108", "K21925", "K22208", "K21938",
-                      "K15098", "K00791", "K10760", "K18385")
 # -----------------------------
-# 🧪 PATHWAY STEP DEFINITIONS (User Editable)
+# Pathway step definitions for precursor and module-level analysis
+
 # -----------------------------
 
-# Pathway step rules for precursor analysis
+# Rule-based definitions of enzymatic steps within each pathway
+
 pathway_steps <- tibble::tribble(
   ~pathway, ~step,     ~rule,
   "M00364", "Step_1",  "K01823",
@@ -193,7 +197,8 @@ pathway_steps <- tibble::tribble(
   "M00927", "Step_4",  "K04123"
 )
 
-# Module blocks for visual grouping
+# Module grouping labels for downstream visualization
+
 module_block <- c(
   M00095 = "Mevalonate  ",
   M00849 = "Mevalonate(archaea) ",
@@ -206,7 +211,8 @@ module_block <- c(
   M00927 = "Gibberellin" 
 )
 
-# Custom steps for bubble chart
+# Custom pathway step definitions for bubble plot visualization
+
 custom_steps <- tibble::tribble(
   ~pathway, ~step,     ~rule,
   
@@ -282,7 +288,7 @@ labels <- c(
 )
 
 # =============================
-# 🚀 EXECUTION CODE (Do not modify below unless necessary)
+# Main execution section (do not modify unless necessary)
 # =============================
 
 # Clean KO lists
@@ -308,7 +314,7 @@ selected_KOs <- unique(c(Mevalonate_Module, MEP_Module, PhenylAlanine_Module,
 
 
 # -----------------------------
-# 📥 2) خواندن داده‌ها (Counts + TPM)
+# 2) Input data loading (raw counts and optional TPM)
 # -----------------------------
 message("📥 Reading counts from sheet:", reads_sheet)
 reads_data <- read_excel(file_name, sheet = reads_sheet)
@@ -319,9 +325,14 @@ expr_counts <- reads_data[, -1]
 colnames(expr_counts) <- colnames(reads_data)[-1]
 expr_counts <- as.data.frame(lapply(expr_counts, function(x) as.integer(as.numeric(x))))
 rownames(expr_counts) <- gene_names
+# --- keep NA mask BEFORE converting to 0 (important for heatmaps)
+expr_counts_rawNA <- expr_counts   # keeps NA positions (gene absent in sample)
+expr_counts[is.na(expr_counts)] <- 0
+expr_tpm_rawNA <- expr_tpm  # keep NA positions if any exist in TPM sheet
 expr_counts[is.na(expr_counts)] <- 0
 
-# سعی برای خواندن TPM
+# Attempt to load TPM matrix (optional)
+
 expr_tpm <- NULL
 if (USE_TPM_FOR_PLOTS) {
   tp <- tryCatch(read_excel(file_name, sheet = tpm_sheet), error = function(e) NULL)
@@ -338,32 +349,44 @@ if (USE_TPM_FOR_PLOTS) {
   }
 }
 
-# فقط ژن‌های ماژولی که در ماتریس وجود دارند
+# Retain only module-associated genes present in the expression matrix
+
 genes_available <- intersect(selected_KOs, rownames(expr_counts))
 stopifnot(length(genes_available) > 0)
 expr_counts <- expr_counts[genes_available, , drop = FALSE]
 if (!is.null(expr_tpm)) expr_tpm <- expr_tpm[genes_available, intersect(colnames(expr_tpm), colnames(expr_counts)), drop = FALSE]
 
+expr_counts_rawNA <- expr_counts_rawNA[genes_available, , drop = FALSE]
+if (!is.null(expr_tpm) && exists("expr_tpm_rawNA")) {
+  expr_tpm_rawNA <- expr_tpm_rawNA[genes_available, intersect(colnames(expr_tpm_rawNA), colnames(expr_counts)), drop = FALSE]
+}
+
 # -----------------------------
-# 👥 3) گروه‌ها و نام‌گذاری نمونه‌ها (مطابق نسخه‌ی شما)
-# -----------------------------
-# توجه: این بخش را مطابق داده‌های خود تنظیم کنید.
-# همان ساختار قبلی شما حفظ شده است.
+# 3) Sample grouping and labeling
+# Adjust this section according to the experimental design
+
 
 group_list <- list(
   "T.Mairei"    = c("X8080080",   "X8080082"),
   "T.Cuspidata" = c("X8080084", "X8080085"),
   "T.xMedia"    = c("X8080086",   "X8080087"),
- # "Corylus alevena"      = c("X3303631","X3303632"),
- # "Nicotiana benthamiana"= c("X6076955","X6076957"), 
- 
+  "Corylus alevena"      = c("X3303631","X3303632"),
+  "Nicotiana benthamiana"= c("X6076955","X6076957"), 
+  
   "T.Chinensis KL27" = c("X15317970","X15317979") ,
   "T.Chinensis " = c("X15317980", "X15317981") , 
-  "T.wallichiana(Ly)" = c("X25203150") ,
-  "T.wallichiana(Hy)" = c("X25203151") , 
+  "T.wallichiana_Ly" = c("X25203150") ,
+  "T.wallichiana_Hy" = c("X25203151") , 
   "T.Chinensis LL" = c("SRR19646424", "SRR19646422"),
   "T.Chinensis HL" = c("SRR19646426","SRR19646427")  
   
+  
+  
+  # "Haematococcus lacustris"      = c("X30206763","X30206764"),
+  # "Fusarium Solani"      = c("X30664875","X30664878"),
+  # "Clamidomonas reinhardtii"      = c("X30527341","X30527339"),
+  # "Limnospira indica(straight trichomes)" = c("X14701335","X14701336"),
+  # "Limnospira indica(helical trichomes)"  = c("X14701341","X14701342")
 )
 
 sample_names <- c(
@@ -387,49 +410,179 @@ sample_names <- c(
   "X3303632"  = "C.alevena 2",
   "X6076955"  = "N.benthamiana 1",
   "X6076956"  = "N.benthamiana 2",
-
+  "X6076957"  = "N.benthamiana 3",
+  "X30206763" = "H.lacustris 1",
+  "X30206764" = "H.lacustris 2",
+  "X30664875" = "F. Solani 1",
+  "X30664878" = "F. Solani 2",
+  "X30527339" = "C. reinhardtii 1",
+  "X30527341" = "C. reinhardtii 2",
+  "X14701335" = "Limnospira (S) 1",
+  "X14701336" = "Limnospira (S) 2",
+  "X14701341" = "Limnospira (H) 1",
+  "X14701342" = "Limnospira (H) 2"
 )
+
+# -----------------------------
+# 🌲 Taxus conditions (anchor set)
+# -----------------------------
+taxus_conditions <- c(
+  "T.Mairei","T.Cuspidata","T.xMedia",
+  "T.Chinensis ","T.Chinensis KL27",
+  "T.Chinensis LL","T.Chinensis HL",
+  "T.wallichiana_Ly","T.wallichiana_Hy"
+)
+
+
+print(setdiff(taxus_conditions, names(group_list)))
+
 
 selected_samples <- unlist(group_list)
 conditions <- unlist(mapply(function(group, samples) rep(group, length(samples)), names(group_list), group_list))
 
 expr_counts_sub <- expr_counts[, selected_samples, drop = FALSE]
+expr_counts_rawNA_sub <- expr_counts_rawNA[, selected_samples, drop = FALSE]
+# --- col_data (با حفظ ID اصلی برای batch mapping) ---
 col_data <- data.frame(row.names = selected_samples, condition = factor(conditions))
+col_data$run_id <- rownames(col_data)  # ID اصلی (قبل از rename)
 
-# نام‌نمایشی
-rownames(col_data) <- sample_names[rownames(col_data)]
+# Assign display names to samples
+
+rownames(col_data) <- sample_names[col_data$run_id]
 colnames(expr_counts_sub) <- sample_names[colnames(expr_counts_sub)]
+colnames(expr_counts_rawNA_sub) <- sample_names[colnames(expr_counts_rawNA_sub)]
+expr_counts_rawNA_sub <- expr_counts_rawNA_sub[, rownames(col_data), drop = FALSE]  # align columns
 
-# TPM زیرمجموعه برای رسم (در صورت وجود)
+# Subset TPM matrix for visualization (if available)
+
 expr_tpm_sub <- NULL
 if (!is.null(expr_tpm)) {
-  # هم‌تراز با samples انتخابی و نام‌های نمایشی
   keep <- intersect(colnames(expr_tpm), selected_samples)
   expr_tpm_sub <- expr_tpm[, keep, drop = FALSE]
   colnames(expr_tpm_sub) <- sample_names[colnames(expr_tpm_sub)]
-  # برای هماهنگی کامل ترتیب ستون‌ها را بر اساس col_data تنظیم کن
   expr_tpm_sub <- expr_tpm_sub[, rownames(col_data), drop = FALSE]
 }
 
 # -----------------------------
-# 🔬 4) DESeq2 روی counts (استاندارد)
+# 🌲 Build a Taxus-only subset for DEG (keeps non-Taxus out of DE)
+# -----------------------------
+taxus_samples <- rownames(col_data)[col_data$condition %in% taxus_conditions]
+expr_counts_taxus <- expr_counts_sub[, taxus_samples, drop = FALSE]
+col_data_taxus <- droplevels(col_data[taxus_samples, , drop = FALSE])
+
+
+# -----------------------------
+# Batch definition (e.g., study, platform, or experimental source)
+
+
+batch_map <- c(
+  # Example batch assignments based on data source or project
+  
+  # Taxus species dataset  
+  "X8080080" = "Study_TaxusSpp",
+  "X8080082" = "Study_TaxusSpp",
+  "X8080084" = "Study_TaxusSpp",
+  "X8080085" = "Study_TaxusSpp",
+  "X8080086" = "Study_TaxusSpp",
+  "X8080087" = "Study_TaxusSpp",
+  
+  # T. chinensis KL27/control dataset  
+  "X15317970" = "Study_KL27_Control",
+  "X15317979" = "Study_KL27_Control",
+  "X15317980" = "Study_KL27_Control",
+  "X15317981" = "Study_KL27_Control",
+  
+  # T. chinensis LL/HL dataset  
+  "SRR19646424" = "Study_LL_HL",
+  "SRR19646422" = "Study_LL_HL",
+  "SRR19646426" = "Study_LL_HL",
+  "SRR19646427" = "Study_LL_HL",
+  
+  # T. wallichiana dataset  
+  "X25203150" = "Study_Twallichiana",
+  "X25203151" = "Study_Twallichiana",
+  
+  # Corylus / Nicotiana  
+  "X3303631" = "Study_Corylus",
+  "X3303632" = "Study_Corylus",
+  "X6076955" = "Study_Nicotiana",
+  "X6076956" = "Study_Nicotiana",
+  "X6076957" = "Study_Nicotiana"
+  
+)
+
+ 
+col_data$batch <- unname(batch_map[col_data$run_id])
+
+ 
+if (any(is.na(col_data$batch))) {
+  missing_ids <- unique(col_data$run_id[is.na(col_data$batch)])
+  warning("⚠️ Some samples have no batch assignment. Setting them to 'UNKNOWN'. Missing run_id: ",
+          paste(missing_ids, collapse = ", "))
+  col_data$batch[is.na(col_data$batch)] <- "UNKNOWN"
+}
+col_data$batch <- factor(col_data$batch)
+col_data_taxus$batch <- col_data[rownames(col_data_taxus), "batch"]
+col_data_taxus$batch <- factor(col_data_taxus$batch)
+# -----------------------------
+# 4) Differential expression analysis using DESeq2
+
 # -----------------------------
 message("🔬 Running DESeq2 on raw counts…")
-dds <- DESeqDataSetFromMatrix(countData = as.matrix(expr_counts_sub), colData = col_data, design = ~ condition)
-dds <- DESeq(dds)
-vsd <- varianceStabilizingTransformation(dds, blind = TRUE)
+
+# Helper function to verify full-rank design matrix
+
+is_full_rank <- function(formula, df) {
+  mm <- model.matrix(formula, df)
+  qr(mm)$rank == ncol(mm)
+}
+
+design_formula <- ~ condition
+use_batch_in_model <- FALSE
+
+if (isTRUE(USE_BATCH_EFFECT) && "batch" %in% colnames(col_data) && nlevels(col_data$batch) > 1) {
+  if (is_full_rank(~ batch + condition, col_data)) {
+    design_formula <- ~ batch + condition
+    use_batch_in_model <- TRUE
+    message("✅ Using batch in DESeq2 design: ~ batch + condition")
+  } else {
+    message("⚠️ Batch is confounded with condition (design not full-rank). Fallback to: ~ condition")
+  }
+} else {
+  message("ℹ️ Batch disabled or only one batch level. Using: ~ condition")
+}
+
+dds_all <- DESeqDataSetFromMatrix(
+  countData = as.matrix(expr_counts_sub),
+  colData   = col_data,
+  design    = design_formula
+)
+
+dds_all <- DESeq(dds_all)
+
+# VST:  
+vsd_all <- varianceStabilizingTransformation(dds_all, blind = !use_batch_in_model)
+
+dds_DE <- DESeqDataSetFromMatrix(
+  countData = as.matrix(expr_counts_taxus),
+  colData   = col_data_taxus,
+  design    = ~ condition
+)
+dds_DE <- DESeq(dds_DE)
+
+
 
 # ماتریس برای نمودارها: TPM (ترجیحی) یا VSD
 get_matrix <- function(obj) if (is.matrix(obj)) obj else assay(obj)
-plot_matrix <- if (USE_TPM_FOR_PLOTS && !is.null(expr_tpm_sub)) as.matrix(expr_tpm_sub) else get_matrix(vsd)
+plot_matrix <- if (USE_TPM_FOR_PLOTS && !is.null(expr_tpm_sub)) as.matrix(expr_tpm_sub) else get_matrix(vsd_all)
 
-# 🔒 Sanitize matrix for downstream plots (remove NA/Inf, drop zero-variance rows/cols)
+
+# 🔒 Sanitize matrix for downstream plots
 sanitize_matrix <- function(m) {
   m <- as.matrix(m)
   storage.mode(m) <- "numeric"
   m[!is.finite(m)] <- NA
   m[is.na(m)] <- 0
-  # drop rows/cols with zero variance
   if (nrow(m) > 1) {
     keep_rows <- apply(m, 1, function(r) stats::sd(r) > 0)
   } else { keep_rows <- TRUE }
@@ -441,6 +594,7 @@ sanitize_matrix <- function(m) {
   m
 }
 plot_matrix <- sanitize_matrix(plot_matrix)
+
 # Align col_data with plot_matrix columns
 if (!all(colnames(plot_matrix) %in% rownames(col_data))) {
   common <- intersect(colnames(plot_matrix), rownames(col_data))
@@ -449,18 +603,100 @@ if (!all(colnames(plot_matrix) %in% rownames(col_data))) {
 col_data <- col_data[colnames(plot_matrix), , drop = FALSE]
 
 # -----------------------------
+# 🧪 Optional: Batch sensitivity report (only if batch model was usable)
+# -----------------------------
+if (isTRUE(RUN_BATCH_SENSITIVITY) && isTRUE(use_batch_in_model)) {
+  message("🧪 Running batch sensitivity (no-batch vs batch) …")
+  
+  dds_nobatch <- DESeqDataSetFromMatrix(countData = as.matrix(expr_counts_sub),
+                                        colData   = col_data,
+                                        design    = ~ condition)
+  dds_nobatch <- DESeq(dds_nobatch)
+  
+  group_names <- levels(col_data_taxus$condition)
+  pairwise_contrasts <- combn(group_names, 2, simplify = FALSE)
+  
+  
+  
+  sens_list <- lapply(pairwise_contrasts, function(pair) {
+    g1 <- pair[1]; g2 <- pair[2]
+    
+    rb <- as.data.frame(results(dds,         contrast = c("condition", g1, g2)))
+    rn <- as.data.frame(results(dds_nobatch, contrast = c("condition", g1, g2)))
+    
+    rb$Gene <- rownames(rb)
+    rn$Gene <- rownames(rn)
+    
+    m <- merge(rb, rn, by = "Gene", suffixes = c("_batch", "_nobatch"))
+    
+    # metrics
+    cor_lfc <- suppressWarnings(stats::cor(m$log2FoldChange_batch, m$log2FoldChange_nobatch,
+                                           use = "pairwise.complete.obs", method = "pearson"))
+    
+    n_sig_batch   <- sum(!is.na(m$padj_batch)   & m$padj_batch   < VOLCANO_PVAL & abs(m$log2FoldChange_batch)   > L2FC_THRESHOLD)
+    n_sig_nobatch <- sum(!is.na(m$padj_nobatch) & m$padj_nobatch < VOLCANO_PVAL & abs(m$log2FoldChange_nobatch) > L2FC_THRESHOLD)
+    
+    data.frame(
+      contrast = paste0(g1, " vs ", g2),
+      cor_log2FC = cor_lfc,
+      sig_batch = n_sig_batch,
+      sig_nobatch = n_sig_nobatch,
+      stringsAsFactors = FALSE
+    )
+  })
+  
+  sens_df <- do.call(rbind, sens_list)
+  write.csv(sens_df, file = file.path(output_dir, "Batch_Sensitivity_Summary.csv"), row.names = FALSE)
+  message("✅ Saved: Batch_Sensitivity_Summary.csv")
+}
+
+
+# ---- helpers for safe filenames ----
+safe_id <- function(x) {
+  x <- gsub("[[:space:]]+", "_", x)
+  x <- gsub("[^A-Za-z0-9_\\-]+", "", x)
+  x
+}
+deg_outdir <- file.path(output_dir, "DEG_Module_Results")
+dir.create(deg_outdir, showWarnings = FALSE, recursive = TRUE)
+
+
+# -----------------------------
 # 🔁 5) Pairwise DEG + Volcano/MA
 # -----------------------------
-dir.create("Plots", showWarnings = FALSE)
+ma_dir <- file.path(output_dir, "MA_plots")   # ✅ داخل Results4
+dir.create(ma_dir, showWarnings = FALSE, recursive = TRUE)
+stopifnot(normalizePath(ma_dir, winslash = "/") == normalizePath(file.path(output_dir, "MA_plots"), winslash = "/"))
+stopifnot(dir.exists(ma_dir))
 
-group_names <- levels(col_data$condition)
+group_names <- levels(colData(dds_DE)$condition)   # فقط levelهای داخل dds_DE (Taxus-only)
 pairwise_contrasts <- combn(group_names, 2, simplify = FALSE)
+
 all_sig_genes <- character(0)
+ 
+wb <- openxlsx::createWorkbook()
+used_sheets <- character(0)
+
+make_unique_sheet <- function(base, used) {
+  base <- substr(base, 1, 31)
+  s <- base; k <- 1
+  while (tolower(s) %in% tolower(used)) {
+    suf <- paste0("_", k)
+    s <- substr(paste0(substr(base, 1, 31 - nchar(suf)), suf), 1, 31)
+    k <- k + 1
+  }
+  s
+}
+
+
 
 for (pair in pairwise_contrasts) {
   g1 <- pair[1]; g2 <- pair[2]
-  res_df <- results(dds, contrast = c("condition", g1, g2)) %>%
-    as.data.frame() %>% tibble::rownames_to_column("Gene") %>% dplyr::filter(complete.cases(.))
+  res_df <- results(dds_DE, contrast = c("condition", g1, g2)) %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("Gene") %>%
+    dplyr::filter(complete.cases(.))
+  
   
   res_df$padj_plot <- ifelse(res_df$padj == 0, 1e-300, res_df$padj)
   res_df$significant <- res_df$padj < VOLCANO_PVAL & abs(res_df$log2FoldChange) > L2FC_THRESHOLD
@@ -471,6 +707,16 @@ for (pair in pairwise_contrasts) {
   topN <- res_df %>% dplyr::filter(significant) %>% dplyr::arrange(dplyr::desc(abs(log2FoldChange))) %>% dplyr::slice_head(n = 20)
   n_up <- sum(res_df$significant & res_df$log2FoldChange > 0, na.rm = TRUE)
   n_down <- sum(res_df$significant & res_df$log2FoldChange < 0, na.rm = TRUE)
+  
+   
+  
+  sheet_base <- paste0(safe_id(g1), "_vs_", safe_id(g2))
+  sheet <- make_unique_sheet(sheet_base, used_sheets)
+  used_sheets <- c(used_sheets, sheet)
+  
+  openxlsx::addWorksheet(wb, sheet)
+  
+  openxlsx::writeData(wb, sheet, res_df, withFilter = TRUE)
   
   volcano <- ggplot(res_df, aes(x = log2FoldChange, y = -log10(padj_plot))) +
     geom_point(aes(color = significant), alpha = 0.7, size = 1.7) +
@@ -492,53 +738,215 @@ for (pair in pairwise_contrasts) {
   ggsave(paste0(output_dir,"/Volcano_", g1, "_vs_", g2, ".png"), plot = volcano, width = 7.5, height = 5.2, dpi = 300)
   
   # MA Plot
-  res <- results(dds, contrast = c("condition", g1, g2))
-  png(paste0(output_dir,"/MA_", g1, "_vs_", g2, ".png"), width = 800, height = 600, res = 120)
-  DESeq2::plotMA(res, ylim = c(-5,5), alpha = VOLCANO_PVAL, main = paste("MA Plot:", g1, "vs", g2))
+  res <- results(dds_DE, contrast = c("condition", g1, g2))
+  file_name <- paste0("MA_", g1, "_vs_", g2, ".png")
+  full_path <- file.path(ma_dir, file_name)
+  png(file.path(ma_dir, paste0("MA_", safe_id(g1), "_vs_", safe_id(g2), ".png")),
+      width = 1000, height = 800)
+  DESeq2::plotMA(res, main = paste0("MA: ", g1, " vs ", g2), ylim = c(-5, 5))
   dev.off()
 }
+
+openxlsx::saveWorkbook(wb, file.path(output_dir, "DESeq2_All_Contrasts.xlsx"), overwrite = TRUE)
+message("✅ Saved: DESeq2_AllContrasts_Summary.xlsx")
+
 
 # -----------------------------
 # 📊 6) PCA (robust to NA/zero-variance)
 # -----------------------------
+# -----------------------------
+# 6) Principal component analysis (two-stage, manuscript-aligned)
+
+#   (A) T. chinensis + treatments only
+#   (B) All Taxus only (exclude non-Taxus)
+# -----------------------------
 message(if (USE_TPM_FOR_PLOTS && !is.null(expr_tpm_sub)) "📊 PCA on TPM matrix" else "📊 PCA on VSD (DESeq2)")
+
 # Use sanitized matrix and align with col_data
-pca_mat <- sanitize_matrix(plot_matrix)
-col_data_pca <- col_data[colnames(pca_mat), , drop = FALSE]
-if (ncol(pca_mat) < 2 || nrow(pca_mat) < 2) {
+pca_mat_all <- sanitize_matrix(plot_matrix)
+col_data_pca_all <- col_data[colnames(pca_mat_all), , drop = FALSE]
+
+if (ncol(pca_mat_all) < 2 || nrow(pca_mat_all) < 2) {
   warning("Not enough non-constant genes/samples for PCA; skipping.")
 } else {
-  pca <- prcomp(t(pca_mat), center = TRUE, scale. = TRUE)
-  percentVar <- round(100 * (pca$sdev^2/sum(pca$sdev^2)))[1:2]
-  pca_df <- data.frame(PC1 = pca$x[,1], PC2 = pca$x[,2], condition = col_data_pca$condition, row.names = rownames(col_data_pca))
-  p <- ggplot(pca_df, aes(PC1, PC2, color = condition, shape = condition)) +
-    geom_point(size = 3) +
-    xlab(paste0("PC1: ", percentVar[1], "%")) + ylab(paste0("PC2: ", percentVar[2], "%")) +
-    ggtitle(if (USE_TPM_FOR_PLOTS && !is.null(expr_tpm_sub)) "PCA of TPM (module genes)" else "PCA of Module Genes (VSD)") +
-    theme_classic()
-  ggsave(paste(output_dir,"/PCA_Module_Genes.png"), plot = p, width = 8, height = 6)
+  
+  make_pca_plot <- function(mat_sub, meta_sub, out_png, main_title,
+                            shape_by = c("none","condition","batch"),
+                            manual_shape_values = NULL) {
+    shape_by <- match.arg(shape_by)
+    
+    if (ncol(mat_sub) < 2 || nrow(mat_sub) < 2) {
+      warning("Not enough genes/samples for PCA in subset: ", out_png)
+      return(invisible(NULL))
+    }
+    
+    # Remove zero-variance genes and samples after subsetting
+    
+    mat_sub <- as.matrix(mat_sub)
+    storage.mode(mat_sub) <- "numeric"
+    mat_sub[!is.finite(mat_sub)] <- NA
+    mat_sub[is.na(mat_sub)] <- 0
+    
+    # (Optional but recommended for TPM PCA)
+    # Apply log-transformation for TPM-based PCA
+    if (USE_TPM_FOR_PLOTS) {
+      mat_sub <- log1p(mat_sub)
+    }
+    
+    # remove genes (rows) with zero variance in THIS subset
+    sd_rows <- apply(mat_sub, 1, stats::sd, na.rm = TRUE)
+    keep_rows <- is.finite(sd_rows) & sd_rows > 0
+    mat_sub <- mat_sub[keep_rows, , drop = FALSE]
+    
+    # remove samples (cols) with zero variance (rare but safe)
+    sd_cols <- apply(mat_sub, 2, stats::sd, na.rm = TRUE)
+    keep_cols <- is.finite(sd_cols) & sd_cols > 0
+    mat_sub <- mat_sub[, keep_cols, drop = FALSE]
+    
+    # keep metadata aligned (VERY IMPORTANT)
+    meta_sub <- meta_sub[colnames(mat_sub), , drop = FALSE]
+    
+    if (ncol(mat_sub) < 2 || nrow(mat_sub) < 2) {
+      warning("Not enough non-constant genes/samples for PCA in subset: ", out_png)
+      return(invisible(NULL))
+    }
+    
+    # run PCA
+    pca <- prcomp(t(mat_sub), center = TRUE, scale. = TRUE)
+    
+    percentVar <- round(100 * (pca$sdev^2 / sum(pca$sdev^2)))[1:2]
+    
+    df <- data.frame(
+      PC1 = pca$x[,1],
+      PC2 = pca$x[,2],
+      condition = meta_sub$condition,
+      batch = if ("batch" %in% colnames(meta_sub)) meta_sub$batch else NA,
+      row.names = rownames(meta_sub)
+    )
+    # ---- Auto shape mapping for many conditions (avoids ggplot default limit) ----
+    if (shape_by == "condition" && is.null(manual_shape_values)) {
+      lev <- unique(as.character(meta_sub$condition))
+      
+      # یک pool از شکل‌های واضح (تا ~21 سطح)
+      shape_pool <- c(16, 17, 15, 18, 3, 7, 8, 0, 1, 2,
+                      4, 5, 6, 9, 10, 11, 12, 13, 14, 19, 20)
+      
+      if (length(lev) <= length(shape_pool)) {
+        manual_shape_values <- setNames(shape_pool[seq_along(lev)], lev)
+      } else {
+        message("⚠️ Too many conditions for unique shapes; using color only (shape disabled).")
+        shape_by <- "none"
+      }
+    }
+    
+    if (shape_by == "condition") {
+      p <- ggplot(df, aes(PC1, PC2, color = condition, shape = condition))
+    } else if (shape_by == "batch") {
+      p <- ggplot(df, aes(PC1, PC2, color = condition, shape = batch))
+    } else {
+      p <- ggplot(df, aes(PC1, PC2, color = condition))
+    }
+    
+    p <- p +
+      geom_point(size = 3) +
+      xlab(paste0("PC1: ", percentVar[1], "%")) +
+      ylab(paste0("PC2: ", percentVar[2], "%")) +
+      ggtitle(main_title) +
+      theme_classic()
+    
+    # اگر shape زیاد شد، اینجا کنترلش می‌کنیم
+    if (!is.null(manual_shape_values) && shape_by != "none") {
+      p <- p + scale_shape_manual(values = manual_shape_values)
+    }
+    p <- p + guides(shape = guide_legend(override.aes = list(size = 4)))
+    
+    
+    ggsave(file.path(output_dir, out_png), plot = p, width = 8, height = 6, dpi = 300)
+  }
+  
+  cond_chr <- trimws(as.character(col_data_pca_all$condition))
+  
+  
+  # (A) فقط T.Chinensis و تیمارهایش (HL/LL/KL27/...)
+  keep_chinensis <- grepl("^T\\.Chinensis", cond_chr)
+  mat_A <- pca_mat_all[, keep_chinensis, drop = FALSE]
+  meta_A <- col_data_pca_all[colnames(mat_A), , drop = FALSE]
+  
+  # برای 4–6 گروه، shape=condition کاملاً استاندارد و خواناست
+  levA <- unique(as.character(meta_A$condition))
+  shape_pool <- c(16, 17, 15, 18, 3, 7, 8, 0, 1, 2)  # کافی برای چند گروه
+  shape_vals_A <- setNames(shape_pool[seq_along(levA)], levA)
+  
+  make_pca_plot(
+    mat_sub = mat_A,
+    meta_sub = meta_A,
+    out_png = "PCA_TChinensis_Treatments.png",
+    main_title = "PCA (module genes): T. chinensis + treatments",
+    shape_by = "condition",
+    manual_shape_values = shape_vals_A
+  )
+  
+   
+  exclude_chinensis_treat <- cond_chr %in% c("T.Chinensis HL", "T.Chinensis LL", "T.Chinensis KL27")
+  
+  keep_taxus <- grepl("^T\\.", cond_chr) & !exclude_chinensis_treat
+  
+  mat_B <- pca_mat_all[, keep_taxus, drop = FALSE]
+  meta_B <- col_data_pca_all[colnames(mat_B), , drop = FALSE]
+  meta_B$condition <- factor(trimws(as.character(meta_B$condition)))
+  
+  #  
+  # رنگ = condition (گونه/گروه)، شکل = batch (مطالعه)  -> تعداد شکل‌ها کم و معنادار
+  if ("batch" %in% colnames(meta_B)) {
+    make_pca_plot(
+      mat_sub = mat_B,
+      meta_sub = meta_B,
+      out_png = "PCA_AllTaxus_ColorShapeByCondition.png",
+      main_title = "PCA (module genes): all Taxus spp",
+      shape_by = "condition"   
+    )
+    
+  } else {
+    
+    make_pca_plot(
+      mat_sub = mat_B,
+      meta_sub = meta_B,
+      out_png = "PCA_AllTaxus_ColoredByCondition.png",
+      main_title = "PCA (module genes): all Taxus spp",
+      shape_by = "none"
+    )
+  }
 }
 
+ 
+
 # -----------------------------
-# 🔥 7) Heatmaps by module + All Modules
+# 7) Module-level heatmap visualization
 # -----------------------------
-plot_module_heatmap <- function(genes, label, mat_for_plot, col_data,
-                                sig_only = TRUE, all_sig_genes = NULL,
-                                topN = 40, scale_row = TRUE) {
+plot_module_heatmap <- function(
+    genes, label, mat_for_plot, col_data,
+    sig_only = TRUE, all_sig_genes = NULL,
+    topN = 40, scale_row = TRUE,
+    na_mask_matrix = NULL, na_col = "grey85"
+) {
   genes <- unique(trimK(genes))
-  # Align & sanitize matrix
+  
+  # Align & sanitize matrix (this should remove NA/Inf for plotting)
   vsd_mat <- sanitize_matrix(mat_for_plot)
+  
   common <- intersect(colnames(vsd_mat), rownames(col_data))
   vsd_mat <- vsd_mat[, common, drop = FALSE]
-  ann <- col_data[common, , drop = FALSE]
+  ann <- col_data[common, "condition", drop = FALSE]
   
-  # Choose genes (prefer significant if available)
+  # --- choose genes: prefer significant genes if requested ---
   sel <- character(0)
   if (sig_only && !is.null(all_sig_genes)) {
     sel_sig <- intersect(trimK(all_sig_genes), genes)
     sel_sig <- sel_sig[!is.na(sel_sig)]
     sel_sig <- intersect(sel_sig, rownames(vsd_mat))
-  } else sel_sig <- character(0)
+  } else {
+    sel_sig <- character(0)
+  }
   
   if (length(sel_sig) >= 2) {
     sel <- unique(sel_sig)
@@ -549,11 +957,13 @@ plot_module_heatmap <- function(genes, label, mat_for_plot, col_data,
       message(sprintf("⛔ No genes from module '%s' found in matrix. Skipped.", label))
       return(invisible(NULL))
     }
+    
     mat0 <- vsd_mat[sel_all, , drop = FALSE]
     vars <- apply(mat0, 1, stats::var)
     vars[!is.finite(vars)] <- 0
     keep <- names(sort(vars[vars > 0], decreasing = TRUE))
     sel <- head(keep, topN)
+    
     if (length(sel) == 0) {
       message(sprintf("⛔ All candidate genes had zero variance for '%s'; skipped.", label))
       return(invisible(NULL))
@@ -569,6 +979,7 @@ plot_module_heatmap <- function(genes, label, mat_for_plot, col_data,
   
   mat <- vsd_mat[sel, , drop = FALSE]
   
+  # Row scaling (z-score per gene) - keep numeric stability
   if (scale_row) {
     rn <- rownames(mat)
     mat <- t(scale(t(mat)))
@@ -576,34 +987,159 @@ plot_module_heatmap <- function(genes, label, mat_for_plot, col_data,
     rownames(mat) <- rn
   }
   
+  # ---- Apply NA mask AFTER scaling (so NA doesn't wipe whole row during scale)
+  if (!is.null(na_mask_matrix)) {
+    common_cols <- intersect(colnames(mat), colnames(na_mask_matrix))
+    common_rows <- intersect(rownames(mat), rownames(na_mask_matrix))
+    if (length(common_cols) > 0 && length(common_rows) > 0) {
+      mask <- is.na(na_mask_matrix[common_rows, common_cols, drop = FALSE])
+      mat[common_rows, common_cols][mask] <- NA
+    }
+  }
+  # ---- Apply NA mask: cells that were NA in the original input become NA in heatmap
+  if (!is.null(na_mask_matrix)) {
+    common_cols <- intersect(colnames(mat), colnames(na_mask_matrix))
+    common_rows <- intersect(rownames(mat), rownames(na_mask_matrix))
+    if (length(common_cols) > 0 && length(common_rows) > 0) {
+      mask <- is.na(na_mask_matrix[common_rows, common_cols, drop = FALSE])
+      mat[common_rows, common_cols][mask] <- NA
+    }
+  }
+  
+  # ✅ NEW: compute clustering on an imputed matrix to avoid hclust NA/NaN/Inf
   do_rowclust <- nrow(mat) > 1
   do_colclust <- ncol(mat) > 1
-  fn <- file.path(output_dir,   sprintf("Heatmap_%s.png", label))
+  
+  mat_clust <- mat
+  mat_clust[!is.finite(mat_clust)] <- 0
+  mat_clust[is.na(mat_clust)] <- 0
+  
+  hc_rows <- if (do_rowclust) stats::hclust(stats::dist(mat_clust)) else FALSE
+  hc_cols <- if (do_colclust) stats::hclust(stats::dist(t(mat_clust))) else FALSE
+  
+  fn <- file.path(output_dir, sprintf("Heatmap_%s.png", label))
   png(fn, width = 1200, height = 900, res = 150)
-  pheatmap(mat,
-           cluster_rows = do_rowclust,
-           cluster_cols = do_colclust,
-           show_rownames = TRUE,
-           show_colnames = TRUE,
-           annotation_col = ann,
-           main =  file.path(output_dir,  sprintf("Heatmap: %s%s", label, title_extra)))
+  pheatmap::pheatmap(
+    mat,
+    cluster_rows  = hc_rows,
+    cluster_cols  = hc_cols,
+    show_rownames = TRUE,
+    show_colnames = TRUE,
+    annotation_col = ann,
+    na_col        = na_col,
+    main          = sprintf("Heatmap: %s%s", label, title_extra)
+  )
   dev.off()
   message("✅ Saved: ", fn)
+  return(invisible(NULL))
+  
 }
+
+
 
 sigK <- if (length(all_sig_genes)) trimK(all_sig_genes) else NULL
 
-plot_module_heatmap(Mevalonate_Module,        "MVA_Module", plot_matrix, col_data, FALSE, sigK, topN = 30)
-plot_module_heatmap(MEP_Module,               "MEP_Module", plot_matrix, col_data, FALSE, sigK, topN = 30)
-plot_module_heatmap(PhenylAlanine_Module,     "PHE_Module", plot_matrix, col_data, FALSE, sigK, topN = 30)
-plot_module_heatmap(Gibberellin_biosynthesis, "GA_Module",  plot_matrix, col_data, FALSE, sigK, topN = 30)
-plot_module_heatmap(Taxadine_module,          "Taxadiene",   plot_matrix, col_data, FALSE, sigK, topN = 30)
+# Plot subsets consistent with manuscript figure definitions
+
+cond_chr_all <- as.character(col_data$condition)
+
+taxus_samples <- rownames(col_data)[grepl("^T\\.", cond_chr_all)]
+chinensis_samples <- rownames(col_data)[grepl("^T\\.Chinensis", cond_chr_all)]
+
+plot_matrix_taxus <- plot_matrix[, taxus_samples, drop = FALSE]
+col_data_taxus <- col_data[taxus_samples, , drop = FALSE]
+
+plot_matrix_chinensis <- plot_matrix[, chinensis_samples, drop = FALSE]
+col_data_chinensis <- col_data[chinensis_samples, , drop = FALSE]
+
+
+# =========================
+# Figure 3: Taxus baseline only (exclude T. chinensis treatments + non-Taxus)
+# =========================
+cond_chr_all <- trimws(as.character(col_data$condition))
+
+taxus_baseline_conditions <- c(
+  "T.Chinensis",
+  "T.Cuspidata",
+  "T.Mairei",
+  "T.xMedia",
+  "T.wallichiana_Hy",
+  "T.wallichiana_Ly"
+)
+
+keep_fig3 <- cond_chr_all %in% taxus_baseline_conditions
+
+col_data_fig3 <- droplevels(col_data[keep_fig3, , drop = FALSE])
+plot_matrix_fig3 <- plot_matrix[, rownames(col_data_fig3), drop = FALSE]
+
+
+ 
+plot_module_heatmap(Mevalonate_Module,        "MVA_Module", plot_matrix_fig3, col_data, FALSE, sigK, topN = 30,TRUE)
+plot_module_heatmap(MEP_Module,               "MEP_Module", plot_matrix_fig3, col_data, FALSE, sigK, topN = 30)
+plot_module_heatmap(PhenylAlanine_Module,     "PHE_Module", plot_matrix_fig3, col_data, FALSE, sigK, topN = 30)
+plot_module_heatmap(Gibberellin_biosynthesis, "GA_Module",  plot_matrix_fig3, col_data, FALSE, sigK, topN = 30)
+#plot_module_heatmap(Taxadine_module,          "Taxadiene",   plot_matrix, col_data, FALSE, sigK, topN = 30)
+plot_module_heatmap(Taxadine_module, "Taxadiene",
+                    mat_for_plot = plot_matrix_fig3, col_data = col_data,
+                    sig_only = FALSE, all_sig_genes = sigK,
+                    topN = 30, scale_row = TRUE,
+                    na_mask_matrix = expr_counts_rawNA_sub,
+                    na_col = "grey85")
+
+ 
 
 AllModules <- unique(c(Mevalonate_Module, MEP_Module, PhenylAlanine_Module, Gibberellin_biosynthesis))
-plot_module_heatmap(AllModules, "All_Modules", plot_matrix, col_data, FALSE, sigK, topN = 60)
+
+
+
+plot_module_heatmap(AllModules, "All_Modules_Taxus_spp", plot_matrix_fig3, col_data_taxus, FALSE, sigK, topN = 60)
+
+plot_module_heatmap(AllModules, "All_Modules", plot_matrix_taxus, col_data_taxus, FALSE, sigK, topN = 60)
+plot_module_heatmap(AllModules, "All_Modules_TChinensis_Treatments", plot_matrix_chinensis, col_data_chinensis, FALSE, sigK, topN = 60)
+
+
+
+plot_matrix_taxus <- plot_matrix[, taxus_samples, drop = FALSE]
+col_data_taxus <- col_data[taxus_samples, , drop = FALSE]
+
+plot_matrix_chinensis <- plot_matrix[, chinensis_samples, drop = FALSE]
+col_data_chinensis <- col_data[chinensis_samples, , drop = FALSE]
+# زیرمجموعه برای T. chinensis با تیمارهای مختلف (HL, LL, KL27, و baseline)
+chinensis_treatment_samples <- rownames(col_data)[grepl("^T\\.Chinensis", cond_chr_all)]
+plot_matrix_chinensis_treatments <- plot_matrix[, chinensis_treatment_samples, drop = FALSE]
+col_data_chinensis_treatments <- col_data[chinensis_treatment_samples, , drop = FALSE]
+
+
+
+# هیت‌مپ‌های درون‌گونه‌ای برای T. chinensis (بین تیمارهای مختلف)
+plot_module_heatmap(Mevalonate_Module, "MVA_Module_Tchinensis_Treatments", 
+                    plot_matrix_chinensis_treatments, col_data_chinensis_treatments, 
+                    FALSE, sigK, topN = 30)
+
+plot_module_heatmap(MEP_Module, "MEP_Module_Tchinensis_Treatments", 
+                    plot_matrix_chinensis_treatments, col_data_chinensis_treatments, 
+                    FALSE, sigK, topN = 30)
+
+plot_module_heatmap(PhenylAlanine_Module, "PHE_Module_Tchinensis_Treatments", 
+                    plot_matrix_chinensis_treatments, col_data_chinensis_treatments, 
+                    FALSE, sigK, topN = 30)
+
+plot_module_heatmap(Gibberellin_biosynthesis, "GA_Module_Tchinensis_Treatments", 
+                    plot_matrix_chinensis_treatments, col_data_chinensis_treatments, 
+                    FALSE, sigK, topN = 30)
+
+plot_module_heatmap(Taxadine_module, "Taxadiene_Tchinensis_Treatments",
+                    mat_for_plot = plot_matrix_chinensis_treatments, 
+                    col_data = col_data_chinensis_treatments,
+                    sig_only = FALSE, all_sig_genes = sigK,
+                    topN = 30, scale_row = TRUE,
+                    na_mask_matrix = expr_counts_rawNA_sub[, chinensis_treatment_samples, drop = FALSE],
+                    na_col = "grey85")
+
+
 
 # -----------------------------
-# 🧪 8) KEGG Enrichment بر اساس KO (در صورت وجود ژن معنی‌دار)
+# # 8) KEGG enrichment analysis based on KO identifiers
 # -----------------------------
 if (length(all_sig_genes)) {
   ks <- unique(trimK(all_sig_genes))
@@ -671,16 +1207,44 @@ safe_scale_rows <- function(m) {
   m
 }
 
-compute_module_activity <- function(module_genes, vsd_matrix) {
-  module_genes <- trimK(module_genes)
-  found_genes  <- intersect(module_genes, rownames(vsd_matrix))
-  if (length(found_genes) < 2) return(rep(NA, ncol(vsd_matrix)))
-  mat <- vsd_matrix[found_genes, , drop = FALSE]
-  if (isTRUE(USE_ZSCORE_FOR_ACTIVITY)) mat <- safe_scale_rows(mat)
-  colMeans(mat, na.rm = TRUE)
+# -----------------------------
+# 🌲 Taxus-anchored Z matrix for MAS (option 2)
+# -----------------------------
+make_taxus_anchored_z <- function(vsd_mat, col_data_all, taxus_conditions) {
+  # ensure same sample order
+  common <- intersect(colnames(vsd_mat), rownames(col_data_all))
+  vsd_mat <- vsd_mat[, common, drop = FALSE]
+  col_data_all <- col_data_all[common, , drop = FALSE]
+  
+  tax_cols <- rownames(col_data_all)[col_data_all$condition %in% taxus_conditions]
+  tax_cols <- intersect(tax_cols, colnames(vsd_mat))
+  if (length(tax_cols) < 2) stop("Not enough Taxus samples to anchor z-score.")
+  
+  mu <- rowMeans(vsd_mat[, tax_cols, drop = FALSE], na.rm = TRUE)
+  sd <- apply(vsd_mat[, tax_cols, drop = FALSE], 1, stats::sd, na.rm = TRUE)
+  sd[sd == 0] <- NA
+  
+  z <- sweep(vsd_mat, 1, mu, "-")
+  z <- sweep(z, 1, sd, "/")
+  z[!is.finite(z)] <- NA
+  z
 }
 
-vsd_mat_for_activity <- as.matrix(plot_matrix)  # TPM یا VSD
+# use VST-normalized matrix for MAS (per your narrative)
+# use VST-normalized matrix for MAS
+vsd_mat_for_activity <- get_matrix(vsd_all)
+
+z_mat_taxus_anchor <- make_taxus_anchored_z(vsd_mat_for_activity, col_data, taxus_conditions)
+
+compute_module_activity <- function(module_genes, z_matrix) {
+  module_genes <- trimK(module_genes)
+  found_genes  <- intersect(module_genes, rownames(z_matrix))
+  if (length(found_genes) < 2) return(rep(NA, ncol(z_matrix)))
+  colMeans(z_matrix[found_genes, , drop = FALSE], na.rm = TRUE)
+}
+ 
+
+
 modules_list <- list(
   Mevalonate      = Mevalonate_Module,
   MEP             = MEP_Module,
@@ -692,13 +1256,25 @@ modules_list <- list(
   map_00270=         map00270
 )
 
-activity_matrix <- sapply(modules_list, compute_module_activity, vsd_matrix = vsd_mat_for_activity)
+activity_matrix <- sapply(modules_list, compute_module_activity, z_matrix = z_mat_taxus_anchor)
+
 activity_df <- as.data.frame(activity_matrix)
 if ("Taxadine" %in% names(activity_df)) {
   names(activity_df)[names(activity_df) == "Taxadine"] <- "Taxadiene"
 }
 activity_df$Sample <- rownames(col_data)
 activity_df$Group  <- col_data$condition
+# ---- Add Taxadiene module activity (Taxus only; non-Taxus = NA) ----
+taxad_vec <- compute_module_activity(Taxadine_module, z_matrix = z_mat_taxus_anchor)
+# اطمینان از نام‌دار بودن بردار
+names(taxad_vec) <- colnames(z_mat_taxus_anchor)
+
+non_taxus_samples <- rownames(col_data)[!(col_data$condition %in% taxus_conditions)]
+taxad_vec[non_taxus_samples] <- NA_real_
+
+# هم‌تراز با ترتیب activity_df
+activity_df$Taxadiene <- taxad_vec[activity_df$Sample]
+
 activity_df <- activity_df[, c("Sample","Group", setdiff(colnames(activity_df), c("Sample","Group")))]
 openxlsx::write.xlsx(activity_df, file = file.path(output_dir,"/Module_Activity_Scores.xlsx"), overwrite = TRUE)
 
@@ -718,10 +1294,282 @@ for (module in colnames(activity_df)[!(colnames(activity_df) %in% c("Sample","Gr
 # Group-wise heatmap
 group_activity_means <- activity_df %>% group_by(Group) %>% summarise(across(-Sample, ~mean(.x, na.rm = TRUE)))
 activity_mat <- as.matrix(group_activity_means[, -1]); rownames(activity_mat) <- group_activity_means$Group
-png(file.path(output_dir,"/Module_Activity_Heatmap.png"), width = 1000, height = 700)
+
+# Group-wise heatmap
+safe_mean <- function(x) {
+  if (all(is.na(x))) NA_real_ else mean(x, na.rm = TRUE)
+}
+
+group_activity_means <- activity_df %>%
+  dplyr::group_by(Group) %>%
+  dplyr::summarise(dplyr::across(-Sample, safe_mean))
+
+
+activity_mat <- as.matrix(group_activity_means[, -1])
+rownames(activity_mat) <- group_activity_means$Group
+
+# ---- Taxus-based color clipping (visual only) ----
+# taxus_conditions باید قبلاً در اسکریپت تعریف شده باشد
+taxus_rows <- rownames(activity_mat) %in% taxus_conditions
+
+# بازه رنگ را فقط از Taxusها بگیر (robust)
+lim_vec <- stats::quantile(as.vector(activity_mat[taxus_rows, , drop = FALSE]),
+                           probs = c(0.02, 0.98), na.rm = TRUE)
+lim <- max(abs(lim_vec))  # symmetric
+
+# clipping فقط برای رنگ
+mat_plot <- pmax(pmin(activity_mat, lim), -lim)
+
+# breaks و رنگ‌ها
+bk <- seq(-lim, lim, length.out = 101)
+cols <- grDevices::colorRampPalette(c("#2c7bb6", "white", "#d7191c"))(100)
+
+# عددهای داخل سلول: مقدار خام + علامت‌گذاری اگر خارج از بازه رنگ باشد
+nums <- matrix("", nrow(activity_mat), ncol(activity_mat),
+               dimnames = dimnames(activity_mat))
+nums[!is.na(activity_mat)] <- sprintf("%.2f", activity_mat[!is.na(activity_mat)])
+
+
+# --- (1) clustering on RAW values, (2) Taxus-based color clipping + row annotation ---
+
+# (2) annotation row: Taxus vs non-Taxus
+row_anno <- data.frame(
+  Type = ifelse(rownames(activity_mat) %in% taxus_conditions, "Taxus", "NonTaxus"),
+  row.names = rownames(activity_mat)
+)
+
+anno_cols <- list(
+  Type = c(Taxus = "#1b9e77", NonTaxus = "#d95f02")
+)
+
+# (color scale) set limits from Taxus only (robust)
+taxus_rows <- rownames(activity_mat) %in% taxus_conditions
+lim_vec <- stats::quantile(as.vector(activity_mat[taxus_rows, , drop = FALSE]),
+                           probs = c(0.02, 0.98), na.rm = TRUE)
+lim <- max(abs(lim_vec))  # symmetric
+
+# clipping only for COLOR (visual only)
+mat_plot <- pmax(pmin(activity_mat, lim), -lim)
+
+bk <- seq(-lim, lim, length.out = 101)
+cols <- grDevices::colorRampPalette(c("#2c7bb6", "#ffffe1", "#F72F07"))(100)
+
+# show raw values (flag if outside clip)
+nums <- matrix("NA", nrow(activity_mat), ncol(activity_mat),
+               dimnames = dimnames(activity_mat))
+nums[!is.na(activity_mat)] <- sprintf("%.2f", activity_mat[!is.na(activity_mat)])
+
+
+# (1) clustering based on RAW (unclipped) matrix
+# (1) clustering matrix (NA -> 0 فقط برای فاصله/کلاسترینگ)
+# (1) clustering matrix (NA -> 0 فقط برای فاصله/کلاسترینگ)
+mat_clust <- activity_mat
+mat_clust[is.na(mat_clust)] <- 0
+
+hc_rows <- stats::hclust(stats::dist(mat_clust))
+hc_cols <- stats::hclust(stats::dist(t(mat_clust)))
+
+# --- rotate row dendrogram to push NonTaxus to bottom (no change in clustering) ---
+if (requireNamespace("dendextend", quietly = TRUE)) {
+  dend_rows <- as.dendrogram(hc_rows)
+  desired_order <- rownames(row_anno)[order(row_anno$Type != "Taxus")]  # Taxus first, NonTaxus last
+  dend_rows <- dendextend::rotate(dend_rows, order = desired_order)
+  hc_rows_rot <- as.hclust(dend_rows)  # ✅ important fix
+} else {
+  hc_rows_rot <- hc_rows
+}
+
+png(file.path(output_dir, "Module_Activity_Heatmap_TaxusScaled.png"),
+    width = 1400, height = 1100)
+
+pheatmap::pheatmap(
+  mat_plot,
+  cluster_rows = hc_rows_rot,   # ✅ must be hclust
+  cluster_cols = hc_cols,
+  color = cols, breaks = bk,
+  na_col = "grey75",
+  display_numbers = nums, number_color = "black",
+  annotation_row = row_anno,
+  annotation_colors = anno_cols,
+  main = sprintf("Group-wise Module Activity (colors clipped to Taxus ±%.2f)", lim),
+  angle_col = 45
+)
+
+dev.off()
+
+
+
+png(file.path(output_dir,"/Module_Activity_Heatmap.png"), width = 1200, height = 900)
 pheatmap(activity_mat, cluster_rows = TRUE, cluster_cols = TRUE, display_numbers = TRUE,
          main = "Group-wise Module Activity Heatmap", angle_col = 45)
 dev.off()
+
+
+
+
+# =============================
+# 🧾 SUPPLEMENTARY EXPORT:
+# Gene-level Z-scores (all modules) + Weakest-Link tables
+# Place AFTER z_mat_taxus_anchor is created
+# (z_mat_taxus_anchor <- make_taxus_anchored_z(...))  :contentReference[oaicite:3]{index=3}
+# =============================
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(openxlsx)
+})
+
+# ---- 0) (Optional) attach Yield to metadata (repeat per replicate) ----
+yield_map <- c(
+  "T.Cuspidata"       = 1.67,
+  "T.xMedia"          = 1.225,
+  "T.Mairei"          = 0.66,
+  "T.Chinensis "      = 0.11,   # توجه: در اسکریپت شما یک فاصله آخر دارد :contentReference[oaicite:4]{index=4}
+  "T.Chinensis LL"    = 0.40,
+  "T.Chinensis HL"    = 0.10,
+  "T.Chinensis KL27"  = 0.36
+  # اگر برای wallichiana هم Yield داری اضافه کن، وگرنه NA می‌ماند
+)
+
+if (!"Yield" %in% colnames(col_data)) {
+  col_data$Yield <- unname(yield_map[as.character(col_data$condition)])
+}
+# ---- Taxus vs non-Taxus sample sets ----
+taxus_samples <- rownames(col_data)[grepl("^T\\.", as.character(col_data$condition))]
+non_taxus_samples <- setdiff(rownames(col_data), taxus_samples)
+
+
+# ---- 1) Build module map (Gene -> Modules) from your defined KO lists ----
+module_map <- list(
+  Taxadiene       = Taxadine_module,
+  MVA             = Mevalonate_Module,
+  MEP             = MEP_Module,
+  Phenylalanine   = PhenylAlanine_Module,
+  GA_Biosynthesis = Gibberellin_biosynthesis,
+  map_00906       = map00906,
+  map_00908       = map00908,
+  map_00909       = map00909,
+  map_00270       = map00270
+)
+
+module_map <- lapply(module_map, trimK)
+
+mod_long <- bind_rows(lapply(names(module_map), function(m) {
+  data.frame(Gene = module_map[[m]], Module = m, stringsAsFactors = FALSE)
+})) %>%
+  distinct() %>%
+  group_by(Gene) %>%
+  summarise(Modules = paste(sort(unique(Module)), collapse = ";"), .groups = "drop")
+
+genes_all <- unique(mod_long$Gene)
+genes_all <- intersect(genes_all, rownames(z_mat_taxus_anchor))  # safety
+
+# ---- 2) Gene-level Z-score table (rows=genes, cols=samples) ----
+z_gene <- as.data.frame(z_mat_taxus_anchor[genes_all, , drop = FALSE])
+z_gene$Gene <- rownames(z_gene)
+z_gene <- z_gene %>%
+  left_join(mod_long, by = "Gene") %>%
+  relocate(Gene, Modules)
+
+# ---- 3) Weakest-link helper: lowest Z gene in a set per sample ----
+weakest_in_set <- function(gene_set, zmat, label) {
+  gene_set <- intersect(trimK(gene_set), rownames(zmat))
+  if (length(gene_set) == 0) return(NULL)
+  
+  sub <- zmat[gene_set, , drop = FALSE]
+  out <- lapply(colnames(sub), function(s) {
+    v <- sub[, s]
+    v2 <- v[is.finite(v)]
+    if (length(v2) == 0) return(data.frame(Sample=s, Set=label, WeakestGene=NA, WeakestZ=NA))
+    g <- names(v2)[which.min(v2)]
+    data.frame(Sample=s, Set=label, WeakestGene=g, WeakestZ=as.numeric(v2[g]))
+  })
+  bind_rows(out)
+}
+
+precursor_genes <- unique(c(MEP_Module, Mevalonate_Module))
+
+wk_tax <- weakest_in_set(
+  Taxadine_module,
+  z_mat_taxus_anchor[, taxus_samples, drop = FALSE],
+  "Taxadiene"
+)
+
+wk_prec <- weakest_in_set(precursor_genes,      z_mat_taxus_anchor, "Precursors_MEP+MVA")
+wk_ga   <- weakest_in_set(Gibberellin_biosynthesis, z_mat_taxus_anchor, "GA_Biosynthesis")
+# define Taxus samples (by condition label)
+is_taxus <- !col_data$condition %in% c("Corylus alevena", "Nicotiana benthamiana")
+taxus_samples <- rownames(col_data)[is_taxus]
+
+# keep Taxadiene weakest-link only for Taxus
+wk_tax <- wk_tax %>% dplyr::filter(Sample %in% taxus_samples)
+weakest_tbl <- bind_rows(wk_prec, wk_tax, wk_ga) %>%
+  left_join(
+    data.frame(Sample = rownames(col_data),
+               Group  = as.character(col_data$condition),
+               Yield  = col_data$Yield,
+               stringsAsFactors = FALSE),
+    by = "Sample"
+  ) %>%
+  relocate(Sample, Group, Yield, Set, WeakestGene, WeakestZ)
+
+# ---- 4) Stage-level scores for quick ranking (mean + "bottleneck" min) ----
+mean_score <- function(gene_set) {
+  gene_set <- intersect(trimK(gene_set), rownames(z_mat_taxus_anchor))
+  if (length(gene_set) < 2) return(rep(NA_real_, ncol(z_mat_taxus_anchor)))
+  colMeans(z_mat_taxus_anchor[gene_set, , drop = FALSE], na.rm = TRUE)
+}
+
+prec_mean <- mean_score(precursor_genes)
+tax_mean  <- mean_score(Taxadine_module)
+ga_mean   <- mean_score(Gibberellin_biosynthesis)
+
+# bottleneck-style predictor (one simple گزینه):
+#  - supply/demand: min(precursors, taxadiene) penalized by GA competitor
+wl_potential <- pmin(prec_mean, tax_mean) - ga_mean
+
+stage_tbl <- data.frame(
+  Sample = colnames(z_mat_taxus_anchor),
+  Group  = as.character(col_data[colnames(z_mat_taxus_anchor), "condition"]),
+  Yield  = col_data[colnames(z_mat_taxus_anchor), "Yield"],
+  Precursors_mean = as.numeric(prec_mean),
+  Taxadiene_mean  = as.numeric(tax_mean),
+  GA_mean         = as.numeric(ga_mean),
+  WeakLinkPotential = as.numeric(wl_potential),
+  stringsAsFactors = FALSE
+)
+
+# ---- 5) Correlation vs Yield (Spearman مناسب‌تر از Pearson برای رتبه‌ها) ----
+corr_tbl <- stage_tbl %>%
+  filter(is.finite(Yield)) %>%
+  summarise(
+    n = sum(is.finite(Yield)),
+    cor_prec = suppressWarnings(cor(Yield, Precursors_mean, method="spearman", use="pairwise.complete.obs")),
+    cor_tax  = suppressWarnings(cor(Yield, Taxadiene_mean,  method="spearman", use="pairwise.complete.obs")),
+    cor_ga   = suppressWarnings(cor(Yield, GA_mean,         method="spearman", use="pairwise.complete.obs")),
+    cor_wl   = suppressWarnings(cor(Yield, WeakLinkPotential, method="spearman", use="pairwise.complete.obs"))
+  )
+
+# ---- 6) Write ONE Excel file for Supplementary ----
+out_xlsx <- file.path(output_dir, "Supplementary_ModuleGene_Zscores_WeakestLink.xlsx")
+
+wb <- createWorkbook()
+addWorksheet(wb, "Gene_Zscores")
+writeDataTable(wb, "Gene_Zscores", z_gene, tableStyle = "TableStyleLight9")
+
+addWorksheet(wb, "WeakestLink_bySample")
+writeDataTable(wb, "WeakestLink_bySample", weakest_tbl, tableStyle = "TableStyleLight9")
+
+addWorksheet(wb, "StageScores_bySample")
+writeDataTable(wb, "StageScores_bySample", stage_tbl, tableStyle = "TableStyleLight9")
+
+addWorksheet(wb, "Yield_Correlations")
+writeDataTable(wb, "Yield_Correlations", corr_tbl, tableStyle = "TableStyleLight9")
+
+saveWorkbook(wb, out_xlsx, overwrite = TRUE)
+message("✅ Saved Supplementary table: ", out_xlsx)
+
 
 
 
@@ -741,7 +1589,7 @@ lab_si_safe <- function(accuracy = NULL, unit = "") {
     scales::label_number(scale_cut = do.call(scales::cut_si, list(unit = unit)),
                          accuracy = accuracy),
     error = function(e) {
-      # اگر شکست خورد (یا نسخه قدیمی/ناسازگار بود)، از label_number ساده استفاده کن
+      # 
       scales::label_number(accuracy = accuracy, big.mark = ",")
     }
   )
@@ -784,7 +1632,7 @@ if (!exists("activity_df") || nrow(activity_df) == 0) {
     } else {
       message("📊 Summary statistics: ", nrow(summary_act), " group-module combinations")
       
-      # ترتیب گروه‌ها مطابق col_data (اگر موجود است)
+      # ترتیب گروه‌ها مطابق col_da 
       if (exists("col_data") && "condition" %in% names(col_data)) {
         summary_act$Group <- factor(summary_act$Group, levels = levels(col_data$condition))
       } else {
@@ -958,7 +1806,8 @@ PRESENCE_THRESH <- 0
 # -----------------------------
 # 🧱 Matrix prep
 # -----------------------------
-vsd_mat <- if (is.matrix(vsd)) vsd else tryCatch(assay(vsd), error = function(e) as.matrix(vsd))
+vsd_mat <- get_matrix(vsd_all)
+
 storage.mode(vsd_mat) <- "numeric"
 rownames(vsd_mat) <- trimws(rownames(vsd_mat))
 samples <- colnames(vsd_mat)
@@ -1304,21 +2153,17 @@ pathway_gene_sets <- pathway_steps |>
 
 # 2) Choose the same matrix used in your Groupwise block
 #    (there you use: vsd_mat_for_activity <- as.matrix(plot_matrix))
-activity_src <- if (exists("vsd_mat_for_activity")) {
-  as.matrix(vsd_mat_for_activity)
-} else if (exists("plot_matrix")) {
-  as.matrix(plot_matrix)
-} else {
-  as.matrix(vsd_mat)  # fallback
-}
+ 
+# Use the same source as MAS: Taxus-anchored z-matrix
+activity_src <- z_mat_taxus_anchor
 
-# 3) Compute activity per pathway using your compute_module_activity()
-#    (this respects USE_ZSCORE_FOR_ACTIVITY and safe_scale_rows you defined earlier)
 pathway_activity_matrix <- sapply(
   setNames(pathway_gene_sets$genes, pathway_gene_sets$pathway),
   compute_module_activity,
-  vsd_matrix = activity_src
+  z_matrix = activity_src
 )
+
+
 
 # pathway_activity_df: long form, with z-score per pathway (like your plots)
 pathway_activity_df <- as.data.frame(pathway_activity_matrix)
@@ -1452,6 +2297,95 @@ if (!all(is.na(pathway_activity_df$Group))) {
   ggsave(paste(output_dir,"/Group_Macro_Activity_consistent.png"),
          p_macro_activity_group_cons, width = 12, height = 4.8, dpi = 300)
 }
+
+
+# =============================
+# 📦 SUPPLEMENT EXPORT: Z-scores for ALL module genes (per gene, per sample)
+# =============================
+message("📦 Exporting per-gene Z-scores for all module genes (Supplement)…")
+
+# 1) Define the exact module set you want in the supplement (match manuscript)
+modules_for_supp <- list(
+  Taxadiene      = Taxadine_module,
+  MVA            = Mevalonate_Module,
+  MEP            = MEP_Module,
+  Phenylalanine  = PhenylAlanine_Module,
+  GA_Biosynthesis= Gibberellin_biosynthesis,
+  map_00906      = map00906,
+  map_00908      = map00908,
+  map_00909      = map00909,
+  map_00270      = map00270
+)
+
+# 2) Collect all genes across modules (KO IDs)
+all_module_genes <- unique(unlist(lapply(modules_for_supp, trimK)))
+all_module_genes <- all_module_genes[!is.na(all_module_genes) & nzchar(all_module_genes)]
+
+# 3) Subset the anchored Z matrix to those genes that exist
+genes_present <- intersect(all_module_genes, rownames(z_mat_taxus_anchor))
+if (length(genes_present) == 0) stop("No module genes found in z_mat_taxus_anchor.")
+z_sub <- z_mat_taxus_anchor[genes_present, , drop = FALSE]
+
+# 4) Build module-membership annotation (a gene can belong to multiple modules)
+gene_to_modules <- vapply(rownames(z_sub), function(g) {
+  hits <- names(Filter(function(vec) g %in% trimK(vec), modules_for_supp))
+  if (length(hits) == 0) NA_character_ else paste(hits, collapse = ";")
+}, FUN.VALUE = character(1))
+
+# wipe non-Taxus columns for Taxadiene genes in the "All" sheet
+tax_genes <- intersect(trimK(Taxadine_module), rownames(z_sub))
+if (length(tax_genes) > 0 && length(non_taxus_samples) > 0) {
+  z_sub[tax_genes, non_taxus_samples] <- NA
+}
+
+supp_all_df <- cbind(
+  data.frame(
+    Gene = rownames(z_sub),
+    Modules = gene_to_modules,
+    stringsAsFactors = FALSE
+  ),
+  as.data.frame(z_sub, check.names = FALSE)
+)
+
+# 5) Also export sample metadata (so reviewer can track condition/batch)
+sample_meta_df <- col_data %>%
+  tibble::rownames_to_column("Sample") %>%
+  dplyr::select(Sample, condition, dplyr::everything())
+
+# 6) Write to Excel: one "All" sheet + one sheet per module + metadata
+supp_file <- file.path(output_dir, "Supplement_Zscores_AllModuleGenes.xlsx")
+
+wb_supp <- openxlsx::createWorkbook()
+
+openxlsx::addWorksheet(wb_supp, "All_ModuleGenes_Z")
+openxlsx::writeData(wb_supp, "All_ModuleGenes_Z", supp_all_df, withFilter = TRUE)
+
+openxlsx::addWorksheet(wb_supp, "Sample_Metadata")
+openxlsx::writeData(wb_supp, "Sample_Metadata", sample_meta_df, withFilter = TRUE)
+
+# Per-module sheets (keeps it easy for reviewer)
+for (mname in names(modules_for_supp)) {
+  mgenes <- intersect(trimK(modules_for_supp[[mname]]), rownames(z_mat_taxus_anchor))
+  if (length(mgenes) == 0) next
+  
+  cols_keep <- colnames(z_mat_taxus_anchor)
+  if (mname == "Taxadiene") cols_keep <- taxus_samples
+  
+  
+  m_df <- cbind(
+    data.frame(Gene = mgenes, Module = mname, stringsAsFactors = FALSE),
+    as.data.frame(z_mat_taxus_anchor[mgenes, cols_keep, drop = FALSE], check.names = FALSE)
+  )
+  
+  sheet <- substr(gsub("[^A-Za-z0-9_\\-]", "_", mname), 1, 31)
+  openxlsx::addWorksheet(wb_supp, sheet)
+  openxlsx::writeData(wb_supp, sheet, m_df, withFilter = TRUE)
+}
+
+openxlsx::saveWorkbook(wb_supp, supp_file, overwrite = TRUE)
+message("✅ Saved supplement Z-score workbook: ", supp_file)
+
+
 
 # =========================================================
 # 🟢 Bubble chart with expression-driven sizes (robust)
@@ -1597,7 +2531,7 @@ bubble_expr_df <- bubble_expr_df %>%
   mutate(
     # برچسب پیشنهادی بر اساس نگاشت
     facet_try = unname(pretty_names[as.character(pathway)]),
-    # اگر نگاشت چیزی نداد، برچسب پیش‌فرض بساز
+    # اگر نگاشت چیزی نداد، برچسب پیش‌فرض  
     facet_lbl = ifelse(
       is.na(facet_try) | facet_try == "",
       paste0(pathway, " • ", module_block[pathway]),
@@ -1679,7 +2613,7 @@ p_bubble_expr <- ggplot(bubble_expr_df, aes(x = sample, y = step)) +
   ) +
   coord_cartesian(clip = "off")
 
- 
+
 ggsave(sprintf(paste(output_dir,"/Pathway_Step_Coverage_Bubble_byModule_%s.png"), SIZE_MODE),
        p_bubble_expr, width = 15, height = 11, dpi = 600)
 
@@ -2013,11 +2947,11 @@ plot_modules_bubble(modules = c("M00095","M00849","M00096","M00366"), steps_df =
                     module_labels  = labels,
                     size_strategy  = "gamma", size_gamma = 0.66, trim_quant = c(0.1, 0.9),
                     rescale_within = TRUE,
-                  #  aggregate_groups = TRUE,
-                  #  group_var = "condition",
-                  #  groups    = names(group_list),
-                  #  presence_rule = "any",
-                  #  group_fun = "mean"
+                    #  aggregate_groups = TRUE,
+                    #  group_var = "condition",
+                    #  groups    = names(group_list),
+                    #  presence_rule = "any",
+                    #  group_fun = "mean"
 )
 plot_modules_bubble(modules = c("M00927","Taxadiene"), steps_df = custom_steps,
                     module_labels  = labels,
@@ -2030,3 +2964,4 @@ plot_modules_bubble(modules = c("M00927","Taxadiene"), steps_df = custom_steps,
                     #  group_fun = "mean"
 )
 message("🎉 Done.")
+
